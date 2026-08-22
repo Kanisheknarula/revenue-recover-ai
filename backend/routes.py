@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
-from backend.agent import choose_recovery_channel
 
+from backend.agent import choose_recovery_channel
 from backend.data import customers_data
 from backend.models import (
     ActionResponse,
@@ -10,7 +10,11 @@ from backend.models import (
 )
 from backend.schemas import PredictionRequest
 from backend.services import find_customer
-from backend.utils import calculate_recovery_score, get_prediction_and_action
+from backend.utils import (
+    build_recovery_explanation,
+    calculate_recovery_score,
+    get_prediction_and_action,
+)
 
 router = APIRouter()
 
@@ -53,6 +57,8 @@ def predict(customer_id: str):
         customer["failure_reason"],
     )
     prediction, recommended_action = get_prediction_and_action(recovery_score)
+    explanation = build_recovery_explanation(prediction, recovery_score)
+    channel = choose_recovery_channel(recommended_action)
 
     return {
         "customer_id": customer["customer_id"],
@@ -62,6 +68,8 @@ def predict(customer_id: str):
         "prediction": prediction,
         "recovery_score": recovery_score,
         "recommended_action": recommended_action,
+        "explanation": explanation,
+        "channel": channel,
     }
 
 
@@ -73,6 +81,8 @@ def predict_from_input(data: PredictionRequest):
         data.failure_reason,
     )
     prediction, recommended_action = get_prediction_and_action(recovery_score)
+    explanation = build_recovery_explanation(prediction, recovery_score)
+    channel = choose_recovery_channel(recommended_action)
 
     return {
         "customer_id": data.customer_id,
@@ -82,6 +92,8 @@ def predict_from_input(data: PredictionRequest):
         "prediction": prediction,
         "recovery_score": recovery_score,
         "recommended_action": recommended_action,
+        "explanation": explanation,
+        "channel": channel,
     }
 
 
@@ -131,10 +143,12 @@ def get_action(customer_id: str):
         customer["failure_reason"],
     )
     prediction, recommended_action = get_prediction_and_action(recovery_score)
+    channel = choose_recovery_channel(recommended_action)
 
     return {
         "customer_id": customer["customer_id"],
         "prediction": prediction,
         "recommended_action": recommended_action,
+        "channel": channel,
         "next_step": f"Action for {customer['name']}: {recommended_action}",
     }
