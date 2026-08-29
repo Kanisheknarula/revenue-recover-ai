@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException
+from backend.ml_model import predict_recovery_probability
 
 from backend.agent import choose_recovery_channel
 from backend.data import customers_data
@@ -51,7 +52,7 @@ def predict(customer_id: str):
     if customer is None:
         raise HTTPException(status_code=404, detail="Customer not found")
 
-    recovery_score = calculate_recovery_score(
+    recovery_score = predict_recovery_probability(
         customer["failed_amount"],
         customer["days_since_failure"],
         customer["failure_reason"],
@@ -75,7 +76,7 @@ def predict(customer_id: str):
 
 @router.post("/predict", response_model=PredictionResponse)
 def predict_from_input(data: PredictionRequest):
-    recovery_score = calculate_recovery_score(
+    recovery_score = predict_recovery_probability(
         data.failed_amount,
         data.days_since_failure,
         data.failure_reason,

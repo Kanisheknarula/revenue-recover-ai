@@ -1,7 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
 
 const API_BASE_URL = "http://127.0.0.1:8000";
+
+function getRiskTone(prediction) {
+  if (prediction === "recovery likely") return "good";
+  if (prediction === "recovery possible") return "medium";
+  return "bad";
+}
+
+const initialForm = {
+  customer_id: "cust_custom_001",
+  failed_amount: 750,
+  days_since_failure: 3,
+  failure_reason: "insufficient_funds",
+};
 
 function App() {
   const [summary, setSummary] = useState(null);
@@ -9,6 +22,11 @@ function App() {
   const [selectedCustomerId, setSelectedCustomerId] = useState("cust_001");
   const [prediction, setPrediction] = useState(null);
   const [actionData, setActionData] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [actionMessage, setActionMessage] = useState("");
+  const [customForm, setCustomForm] = useState(initialForm);
+  const [customPrediction, setCustomPrediction] = useState(null);
+  const [customLoading, setCustomLoading] = useState(false);
 
   useEffect(() => {
     fetch(`${API_BASE_URL}/recoveries/summary`)
@@ -25,6 +43,8 @@ function App() {
   useEffect(() => {
     if (!selectedCustomerId) return;
 
+    setActionMessage("");
+
     fetch(`${API_BASE_URL}/predict/${selectedCustomerId}`)
       .then((response) => response.json())
       .then((data) => setPrediction(data))
@@ -35,6 +55,57 @@ function App() {
       .then((data) => setActionData(data))
       .catch((error) => console.error("Action fetch error:", error));
   }, [selectedCustomerId]);
+
+  const filteredCustomers = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+
+    if (!term) return customers;
+
+    return customers.filter((customer) => {
+      return (
+        customer.name.toLowerCase().includes(term) ||
+        customer.customer_id.toLowerCase().includes(term) ||
+        String(customer.failed_amount).includes(term)
+      );
+    });
+  }, [customers, searchTerm]);
+
+  function handleSimulateAction() {
+    if (!actionData) return;
+
+    setActionMessage(
+      `Success: ${actionData.recommended_action} triggered for ${actionData.customer_id} via ${actionData.channel}.`
+    );
+  }
+
+  function handleFormChange(event) {
+    const { name, value } = event.target;
+
+    setCustomForm((prev) => ({
+      ...prev,
+      [name]:
+        name === "failed_amount" || name === "days_since_failure"
+          ? Number(value)
+          : value,
+    }));
+  }
+
+  function handleCustomPrediction(event) {
+    event.preventDefault();
+    setCustomLoading(true);
+
+    fetch(`${API_BASE_URL}/predict`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(customForm),
+    })
+      .then((response) => response.json())
+      .then((data) => setCustomPrediction(data))
+      .catch((error) => console.error("Custom prediction error:", error))
+      .finally(() => setCustomLoading(false));
+  }
 
   return (
     <div className="app">
@@ -98,20 +169,37 @@ function App() {
             <span className="section-tag">Choose Customer</span>
           </div>
 
+          <input
+            className="search-box"
+            type="text"
+            placeholder="Search by name, id, or amount"
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+          />
+
           <div className="customer-list">
-            {customers.map((customer) => (
-              <button
-                key={customer.customer_id}
-                className={`customer-item ${
-                  selectedCustomerId === customer.customer_id ? "active" : ""
-                }`}
-                onClick={() => setSelectedCustomerId(customer.customer_id)}
-              >
-                <strong>{customer.name}</strong>
-                <span>{customer.customer_id}</span>
-                <span>₹{customer.failed_amount}</span>
-              </button>
-            ))}
+            {filteredCustomers.length > 0 ? (
+              filteredCustomers.map((customer) => (
+                <button
+                  key={customer.customer_id}
+                  className={`customer-item ${
+                    selectedCustomerId === customer.customer_id ? "active" : ""
+                  }`}
+                  onClick={() => setSelectedCustomerId(customer.customer_id)}
+                >
+                  <div className="customer-top">
+                    <strong>{customer.name}</strong>
+                    <span className="status-pill">Failed</span>
+                  </div>
+                  <span>{customer.customer_id}</span>
+                  <span>₹{customer.failed_amount}</span>
+                </button>
+              ))
+            ) : (
+              <div className="empty-state">
+                No customers matched your search.
+              </div>
+            )}
           </div>
         </section>
 
@@ -123,7 +211,7 @@ function App() {
 
           {prediction ? (
             <div className="details">
-              <div className="highlight-box">
+              <div className={`highlight-box risk-${getRiskTone(prediction.prediction)}`}>
                 <span>Prediction</span>
                 <strong>{prediction.prediction}</strong>
               </div>
@@ -162,9 +250,90 @@ function App() {
               <p><strong>Prediction:</strong> {actionData.prediction}</p>
               <p><strong>Channel:</strong> {actionData.channel}</p>
               <p><strong>Next Step:</strong> {actionData.next_step}</p>
+
+              <button className="simulate-button" type="button" onClick={handleSimulateAction}>
+                Simulate Recovery Action
+              </button>
+
+              {actionMessage && <div className="success-banner">{actionMessage}</div>}
             </div>
           ) : (
             <p>Loading action...</p>
+          )}
+        </section>
+
+        <section className="card action-card">
+          <div className="section-head">
+            <h2>Custom Prediction Lab</h2>
+            <span className="section-tag">Manual Test</span>
+          </div>
+
+          <form className="custom-form" onSubmit={handleCustomPrediction}>
+            <div className="form-grid">
+              <label>
+                Customer ID
+                <input
+                  name="customer_id"
+                  value={customForm.customer_id}
+                  onChange={handleFormChange}
+                />
+              </label>
+
+              <label>
+                Failed Amount
+                <input
+                  name="failed_amount"
+                  type="number"
+                  value={customForm.failed_amount}
+                  onChange={handleFormChange}
+                />
+              </label>
+
+              <label>
+                Days Since Failure
+                <input
+                  name="days_since_failure"
+                  type="number"
+                  value={customForm.days_since_failure}
+                  onChange={handleFormChange}
+                />
+              </label>
+
+              <label>
+                Failure Reason
+                <select
+                  name="failure_reason"
+                  value={customForm.failure_reason}
+                  onChange={handleFormChange}
+                >
+                  <option value="insufficient_funds">insufficient_funds</option>
+                  <option value="card_expired">card_expired</option>
+                  <option value="bank_declined">bank_declined</option>
+                  <option value="upi_failed">upi_failed</option>
+                </select>
+              </label>
+            </div>
+
+            <button className="simulate-button" type="submit">
+              {customLoading ? "Running Prediction..." : "Run Custom Prediction"}
+            </button>
+          </form>
+
+          {customPrediction ? (
+            <div className="custom-result">
+              <div className={`highlight-box risk-${getRiskTone(customPrediction.prediction)}`}>
+                <span>Custom Prediction</span>
+                <strong>{customPrediction.prediction}</strong>
+              </div>
+              <p><strong>Recovery Score:</strong> {customPrediction.recovery_score}</p>
+              <p><strong>Recommended Action:</strong> {customPrediction.recommended_action}</p>
+              <p><strong>Explanation:</strong> {customPrediction.explanation}</p>
+              <p><strong>Channel:</strong> {customPrediction.channel}</p>
+            </div>
+          ) : (
+            <div className="empty-state">
+              Run a manual prediction to test a new recovery scenario.
+            </div>
           )}
         </section>
       </main>
