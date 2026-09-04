@@ -1,7 +1,4 @@
 from fastapi import APIRouter, HTTPException
-from backend.ml_model import predict_recovery_probability
-
-from backend.agent import choose_recovery_channel
 from backend.data import customers_data
 from backend.models import (
     ActionResponse,
@@ -11,11 +8,8 @@ from backend.models import (
 )
 from backend.schemas import PredictionRequest
 from backend.services import find_customer
-from backend.utils import (
-    build_recovery_explanation,
-    calculate_recovery_score,
-    get_prediction_and_action,
-)
+from backend.prediction_service import build_prediction, build_recovery_playbook
+from backend.ml_model import get_model_insights
 
 router = APIRouter()
 
@@ -52,49 +46,35 @@ def predict(customer_id: str):
     if customer is None:
         raise HTTPException(status_code=404, detail="Customer not found")
 
-    recovery_score = predict_recovery_probability(
+    decision = build_prediction(
         customer["failed_amount"],
         customer["days_since_failure"],
         customer["failure_reason"],
     )
-    prediction, recommended_action = get_prediction_and_action(recovery_score)
-    explanation = build_recovery_explanation(prediction, recovery_score)
-    channel = choose_recovery_channel(recommended_action)
 
     return {
         "customer_id": customer["customer_id"],
         "failed_amount": customer["failed_amount"],
         "days_since_failure": customer["days_since_failure"],
         "failure_reason": customer["failure_reason"],
-        "prediction": prediction,
-        "recovery_score": recovery_score,
-        "recommended_action": recommended_action,
-        "explanation": explanation,
-        "channel": channel,
+        **decision,
     }
 
 
 @router.post("/predict", response_model=PredictionResponse)
 def predict_from_input(data: PredictionRequest):
-    recovery_score = predict_recovery_probability(
+    decision = build_prediction(
         data.failed_amount,
         data.days_since_failure,
         data.failure_reason,
     )
-    prediction, recommended_action = get_prediction_and_action(recovery_score)
-    explanation = build_recovery_explanation(prediction, recovery_score)
-    channel = choose_recovery_channel(recommended_action)
 
     return {
         "customer_id": data.customer_id,
         "failed_amount": data.failed_amount,
         "days_since_failure": data.days_since_failure,
         "failure_reason": data.failure_reason,
-        "prediction": prediction,
-        "recovery_score": recovery_score,
-        "recommended_action": recommended_action,
-        "explanation": explanation,
-        "channel": channel,
+        **decision,
     }
 
 
@@ -108,16 +88,15 @@ def recovery_summary():
     unlikely = 0
 
     for customer in customers_data:
-        score = calculate_recovery_score(
+        decision = build_prediction(
             customer["failed_amount"],
             customer["days_since_failure"],
             customer["failure_reason"],
         )
-        prediction, _ = get_prediction_and_action(score)
 
-        if prediction == "recovery likely":
+        if decision["prediction"] == "recovery likely":
             likely += 1
-        elif prediction == "recovery possible":
+        elif decision["prediction"] == "recovery possible":
             possible += 1
         else:
             unlikely += 1
@@ -138,18 +117,86 @@ def get_action(customer_id: str):
     if customer is None:
         raise HTTPException(status_code=404, detail="Customer not found")
 
-    recovery_score = calculate_recovery_score(
+    decision = build_prediction(
         customer["failed_amount"],
         customer["days_since_failure"],
         customer["failure_reason"],
     )
-    prediction, recommended_action = get_prediction_and_action(recovery_score)
-    channel = choose_recovery_channel(recommended_action)
-
     return {
         "customer_id": customer["customer_id"],
-        "prediction": prediction,
-        "recommended_action": recommended_action,
-        "channel": channel,
-        "next_step": f"Action for {customer['name']}: {recommended_action}",
+        "prediction": decision["prediction"],
+        "recommended_action": decision["recommended_action"],
+        "channel": decision["channel"],
+        "confidence": decision["confidence"],
+        "next_step": f"Action for {customer['name']}: {decision['recommended_action']}",
     }
+
+
+@router.get("/playbooks/{customer_id}")
+def get_recovery_playbook(customer_id: str):
+    customer = find_customer(customer_id)
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Customer not found")
+
+    decision = build_prediction(
+        customer["failed_amount"],
+        customer["days_since_failure"],
+        customer["failure_reason"],
+    )
+    return build_recovery_playbook(customer["name"], decision)
+
+
+@router.get("/analytics/portfolio")
+def portfolio_analytics():
+    reason_map = {}
+    outcome_map = {
+        "recovery likely": 0,
+        "recovery possible": 0,
+        "recovery unlikely": 0,
+    }
+    priority_cases = []
+    estimated_recoverable_amount = 0
+
+    for customer in customers_data:
+        decision = build_prediction(
+            customer["failed_amount"],
+            customer["days_since_failure"],
+            customer["failure_reason"],
+        )
+        reason = customer["failure_reason"]
+        reason_map.setdefault(reason, {"reason": reason, "cases": 0, "amount": 0})
+        reason_map[reason]["cases"] += 1
+        reason_map[reason]["amount"] += customer["failed_amount"]
+        outcome_map[decision["prediction"]] += 1
+
+        expected_recovery = round(customer["failed_amount"] * decision["recovery_score"])
+        estimated_recoverable_amount += expected_recovery
+        priority_cases.append(
+            {
+                "customer_id": customer["customer_id"],
+                "name": customer["name"],
+                "failed_amount": customer["failed_amount"],
+                "recovery_score": decision["recovery_score"],
+                "expected_recovery": expected_recovery,
+                "recommended_action": decision["recommended_action"],
+            }
+        )
+
+    return {
+        "estimated_recoverable_amount": estimated_recoverable_amount,
+        "reason_breakdown": sorted(reason_map.values(), key=lambda item: item["amount"], reverse=True),
+        "outcome_breakdown": [
+            {"label": label, "cases": cases}
+            for label, cases in outcome_map.items()
+        ],
+        "priority_cases": sorted(
+            priority_cases,
+            key=lambda item: item["expected_recovery"],
+            reverse=True,
+        ),
+    }
+
+
+@router.get("/model/insights")
+def model_insights():
+    return get_model_insights()

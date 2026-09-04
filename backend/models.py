@@ -21,6 +21,10 @@ class PredictionResponse(BaseModel):
     recommended_action: str
     explanation: str
     channel: str
+    confidence: str
+    key_factors: list[str]
+    model_type: str
+    data_source: str
 
 
 class ActionResponse(BaseModel):
@@ -29,6 +33,7 @@ class ActionResponse(BaseModel):
     recommended_action: str
     next_step: str
     channel: str
+    confidence: str
 
 
 class RecoverySummaryResponse(BaseModel):

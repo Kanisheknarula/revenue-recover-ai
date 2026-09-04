@@ -1,12 +1,14 @@
+import json
 import random
 import joblib
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import classification_report
+from sklearn.metrics import accuracy_score, classification_report, f1_score, precision_score, recall_score
 
 
-def generate_synthetic_data(num_rows=500):
+def generate_synthetic_data(num_rows=500, seed=42):
+    random.seed(seed)
     failure_reasons = [
         "insufficient_funds",
         "card_expired",
@@ -76,13 +78,31 @@ def train_model():
     model.fit(X_train, y_train)
 
     predictions = model.predict(X_test)
-    print(classification_report(y_test, predictions))
+    report = classification_report(y_test, predictions)
+    print(report)
+
+    metadata = {
+        "model_type": "Random Forest classifier",
+        "training_data": "Synthetic labeled recovery scenarios",
+        "training_rows": len(X_train),
+        "test_rows": len(X_test),
+        "input_features": X.columns.tolist(),
+        "evaluation": {
+            "accuracy": round(float(accuracy_score(y_test, predictions)), 3),
+            "precision": round(float(precision_score(y_test, predictions, zero_division=0)), 3),
+            "recall": round(float(recall_score(y_test, predictions, zero_division=0)), 3),
+            "f1_score": round(float(f1_score(y_test, predictions, zero_division=0)), 3),
+        },
+    }
 
     joblib.dump(model, "ml/recovery_model.pkl")
     joblib.dump(X.columns.tolist(), "ml/model_features.pkl")
+    with open("ml/model_metadata.json", "w", encoding="utf-8") as metadata_file:
+        json.dump(metadata, metadata_file, indent=2)
 
     print("Model saved to ml/recovery_model.pkl")
     print("Feature list saved to ml/model_features.pkl")
+    print("Evaluation metadata saved to ml/model_metadata.json")
 
 
 if __name__ == "__main__":

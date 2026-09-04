@@ -34,5 +34,77 @@ customers_data = [
         "days_since_failure": 7,
         "failure_reason": "upi_failed",
         "status": "payment_failed"
+    },
+    {
+        "customer_id": "cust_005",
+        "name": "Arjun Nair",
+        "email": "arjun@example.com",
+        "failed_amount": 799,
+        "days_since_failure": 1,
+        "failure_reason": "upi_failed",
+        "status": "payment_failed"
+    },
+    {
+        "customer_id": "cust_006",
+        "name": "Kavya Iyer",
+        "email": "kavya@example.com",
+        "failed_amount": 2299,
+        "days_since_failure": 9,
+        "failure_reason": "bank_declined",
+        "status": "payment_failed"
+    },
+    {
+        "customer_id": "cust_007",
+        "name": "Rohan Das",
+        "email": "rohan@example.com",
+        "failed_amount": 349,
+        "days_since_failure": 4,
+        "failure_reason": "insufficient_funds",
+        "status": "payment_failed"
+    },
+    {
+        "customer_id": "cust_008",
+        "name": "Meera Joshi",
+        "email": "meera@example.com",
+        "failed_amount": 1299,
+        "days_since_failure": 3,
+        "failure_reason": "card_expired",
+        "status": "payment_failed"
+    },
+    {
+        "customer_id": "cust_009",
+        "name": "Vikram Singh",
+        "email": "vikram@example.com",
+        "failed_amount": 599,
+        "days_since_failure": 6,
+        "failure_reason": "upi_failed",
+        "status": "payment_failed"
+    },
+    {
+        "customer_id": "cust_010",
+        "name": "Ananya Rao",
+        "email": "ananya@example.com",
+        "failed_amount": 1899,
+        "days_since_failure": 12,
+        "failure_reason": "card_expired",
+        "status": "payment_failed"
+    },
+    {
+        "customer_id": "cust_011",
+        "name": "Dev Patel",
+        "email": "dev@example.com",
+        "failed_amount": 449,
+        "days_since_failure": 2,
+        "failure_reason": "insufficient_funds",
+        "status": "payment_failed"
+    },
+    {
+        "customer_id": "cust_012",
+        "name": "Isha Gupta",
+        "email": "isha@example.com",
+        "failed_amount": 899,
+        "days_since_failure": 8,
+        "failure_reason": "bank_declined",
+        "status": "payment_failed"
     }
 ]

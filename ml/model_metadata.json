@@ -1,0 +1,20 @@
+{
+  "model_type": "Random Forest classifier",
+  "training_data": "Synthetic labeled recovery scenarios",
+  "training_rows": 400,
+  "test_rows": 100,
+  "input_features": [
+    "failed_amount",
+    "days_since_failure",
+    "failure_reason_bank_declined",
+    "failure_reason_card_expired",
+    "failure_reason_insufficient_funds",
+    "failure_reason_upi_failed"
+  ],
+  "evaluation": {
+    "accuracy": 0.99,
+    "precision": 0.917,
+    "recall": 1.0,
+    "f1_score": 0.957
+  }
+}
